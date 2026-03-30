@@ -354,7 +354,7 @@ const fetchData = async () => {
 
 const fetchGroups = async () => {
     try {
-        const res = await fetch(`${backendUrl}/grups/`);
+        const res = await fetch(`${backendUrl}/grups`);
         allGroups.value = await res.json();
     } catch(e) { console.error(e); }
 };
