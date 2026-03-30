@@ -1,0 +1,17 @@
+# Python
+backend/venv/
+backend/__pycache__/
+backend/*.pyc
+
+# Firebase credentials - NEVER commit this
+backend/serviceAccountKey.json
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
