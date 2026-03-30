@@ -159,8 +159,8 @@ const state = ref({ torn_actual: null, ordre: [] });
 const activeGroup = ref('');
 const socketConnected = ref(false);
 let ws = null;
-const backendUrl = 'http://localhost:8001';
-const wsUrl = `ws://localhost:8001/tria/ws`;
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
+const wsUrl = backendUrl.replace('http', 'ws') + '/tria/ws';
 const roundSelectionCount = ref(0);
 
 const days = [{ id: 1, label: 'Dilluns' }, { id: 2, label: 'Dimarts' }, { id: 3, label: 'Dimecres' }, { id: 4, label: 'Dijous' }, { id: 5, label: 'Divendres' }];

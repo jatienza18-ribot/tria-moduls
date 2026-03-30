@@ -44,7 +44,7 @@ const password = ref('123'); // Preset for test convenience
 const error = ref('');
 const isLoading = ref(false);
 
-const backendUrl = 'http://localhost:8001';
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
 
 const handleLogin = async () => {
   error.value = '';
