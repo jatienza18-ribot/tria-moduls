@@ -505,7 +505,7 @@ const deleteUser = async (username) => {
     } catch(e) { console.error(e); }
 };
 
-const logout = () => { localStorage.removeItem('tria_session'); window.location.href = '/login'; };
+const logout = () => { localStorage.removeItem('tria_session'); window.location.href = '/#/login'; };
 
 onMounted(fetchData);
 </script>
