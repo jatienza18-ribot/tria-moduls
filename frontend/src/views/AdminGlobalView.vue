@@ -13,6 +13,7 @@
       <div class="mb-6 flex justify-center bg-white p-2 rounded-xl shadow-sm border border-slate-200 gap-2">
         <button @click="viewMode = 'ESTAT'" :class="viewMode === 'ESTAT' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-6 py-2 rounded-lg font-bold flex-1 transition">Configuració Departaments</button>
         <button @click="viewMode = 'HORARIS'" :class="viewMode === 'HORARIS' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-6 py-2 rounded-lg font-bold flex-1 transition">Editor Mestre d'Horaris</button>
+        <button @click="viewMode = 'GRUPS'" :class="viewMode === 'GRUPS' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-6 py-2 rounded-lg font-bold flex-1 transition">Gestió Grups</button>
         <button @click="viewMode = 'USUARIS'" :class="viewMode === 'USUARIS' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'" class="px-6 py-2 rounded-lg font-bold flex-1 transition">Usuaris i Càrrecs</button>
       </div>
 
@@ -22,9 +23,12 @@
             + Nova Especialitat
         </button>
         <button v-if="viewMode === 'HORARIS'" @click="openCreateModal" class="bg-emerald-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-emerald-700 transition">
-            + Nova Franja (Mòdul Nou)
+            + Nova Franja
         </button>
-        <button v-if="viewMode === 'USUARIS'" @click="openUserModal" class="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-purple-700 transition">
+        <button v-if="viewMode === 'GRUPS'" @click="addGroup" class="bg-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-indigo-700 transition">
+            + Nou Grup
+        </button>
+        <button v-if="viewMode === 'USUARIS'" @click="openUserModal()" class="bg-purple-600 text-white px-6 py-2 rounded-full font-bold shadow hover:bg-purple-700 transition">
             + Nou Usuari
         </button>
       </div>
@@ -154,12 +158,24 @@
                             <span v-if="user.rol === 'ADMIN'" class="text-slate-400 italic text-xs">Accés Global</span>
                         </div>
                     </td>
-                    <td class="py-4 text-center">
+                    <td class="py-4 flex gap-2 justify-center">
+                        <button @click="openUserModal(user)" class="text-indigo-600 hover:text-indigo-800 font-bold text-xs uppercase px-2 py-1 border border-indigo-200 rounded hover:bg-indigo-50 transition">Editar</button>
                         <button v-if="user.username !== 'admin'" @click="deleteUser(user.username)" class="text-red-500 hover:text-red-700 font-bold text-xs uppercase px-2 py-1 border border-red-200 rounded hover:bg-red-50 transition">Eliminar</button>
                     </td>
                 </tr>
             </tbody>
         </table>
+      </div>
+
+      <!-- Gestió de Grups -->
+      <div v-if="viewMode === 'GRUPS'" class="bg-white rounded-xl shadow border border-slate-200 p-6">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div v-for="g in allGroups" :key="g" class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-sm">
+                  <span class="font-bold text-slate-700">{{ g }}</span>
+                  <button @click="removeGroup(g)" class="text-red-400 hover:text-red-600 p-1">✕</button>
+              </div>
+          </div>
+          <div v-if="allGroups.length === 0" class="text-center py-10 text-slate-400 italic">No hi ha grups configurats.</div>
       </div>
 
     </div>
@@ -230,7 +246,7 @@
     <div v-if="showUserModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
         <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
-            <h2 class="font-bold text-lg">Nou Usuari</h2>
+            <h2 class="font-bold text-lg">{{ isEditingUser ? 'Editar Usuari' : 'Nou Usuari' }}</h2>
             <button @click="showUserModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
         </div>
         <div class="p-6 overflow-y-auto">
@@ -240,7 +256,7 @@
                     <input v-model="editUser.username" type="text" placeholder="ex: matematiques_cap" class="w-full border border-slate-300 p-2 rounded outline-none focus:border-brand-blue" />
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-slate-700 mb-1">Contrasenya Inicial</label>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">Contrasenya</label>
                     <input v-model="editUser.password" type="text" placeholder="ex: 12345" class="w-full border border-slate-300 p-2 rounded outline-none focus:border-brand-blue" />
                 </div>
                 <div>
@@ -261,7 +277,9 @@
                     </div>
                 </div>
             </div>
-            <button @click="saveUser" class="w-full mt-6 bg-brand-blue text-white py-3 rounded-lg font-bold hover:bg-blue-600 shadow-md">Crear Credencial</button>
+            <button @click="saveUser" class="w-full mt-6 bg-brand-blue text-white py-3 rounded-lg font-bold hover:bg-blue-600 shadow-md">
+                {{ isEditingUser ? 'Desar Canvis' : 'Crear Credencial' }}
+            </button>
         </div>
       </div>
     </div>
@@ -280,10 +298,11 @@ if (!session || session.rol !== 'ADMIN') { router.replace('/login'); }
 const allStates = ref({});
 const allSlots = ref([]);
 const allUsers = ref([]);
+const allGroups = ref([]);
 const renameInputs = ref({});
 
 const activeGroup = ref('');
-const viewMode = ref('ESTAT'); // ESTAT, HORARIS, USUARIS
+const viewMode = ref('ESTAT'); // ESTAT, HORARIS, GRUPS, USUARIS
 
 const showMoveModal = ref(false);
 const isCreating = ref(false);
@@ -293,6 +312,8 @@ const editSlot = ref({ grup_id: '', dia_setmana: 1, hora_inici: '08:00', modul_n
 const newGroupName = ref('');
 
 const showUserModal = ref(false);
+const isEditingUser = ref(false);
+const originalUsername = ref('');
 const editUser = ref({ username: '', password: '', rol: 'DEPARTAMENT', especialitats: [] });
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
@@ -305,7 +326,11 @@ const timeSlots = [
   { id: '17:00', label: '17:00' }, { id: '18:30', label: '18:30' }, { id: '19:30', label: '19:30' }, { id: '20:30', label: '20:30' }
 ];
 
-const availableGroups = computed(() => Array.from(new Set(allSlots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean).sort());
+const availableGroups = computed(() => {
+    const fromSlots = Array.from(new Set(allSlots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean);
+    const fromMaster = allGroups.value;
+    return Array.from(new Set([...fromSlots, ...fromMaster])).sort();
+});
 const filteredSlots = computed(() => activeGroup.value ? allSlots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : allSlots.value);
 
 const fetchData = async () => {
@@ -322,7 +347,15 @@ const fetchData = async () => {
         allSlots.value = await resSlots.json();
         
         fetchUsers();
+        fetchGroups();
         if(!activeGroup.value && availableGroups.value.length > 0) activeGroup.value = availableGroups.value[0];
+    } catch(e) { console.error(e); }
+};
+
+const fetchGroups = async () => {
+    try {
+        const res = await fetch(`${backendUrl}/grups/`);
+        allGroups.value = await res.json();
     } catch(e) { console.error(e); }
 };
 
@@ -475,14 +508,36 @@ const deleteSlot = async () => {
     } catch(e) { console.error(e); }
 };
 
-const openUserModal = () => {
-    editUser.value = { username: '', password: '', rol: 'DEPARTAMENT', especialitats: [] };
+const openUserModal = (user = null) => {
+    if (user) {
+        isEditingUser.value = true;
+        originalUsername.value = user.username;
+        editUser.value = { ...user };
+    } else {
+        isEditingUser.value = false;
+        originalUsername.value = '';
+        editUser.value = { username: '', password: '', rol: 'DEPARTAMENT', especialitats: [] };
+    }
     showUserModal.value = true;
 };
 
 const saveUser = async () => {
-    if(!editUser.value.username.trim() || !editUser.value.password.trim()) return alert("Nom d'usuari i contrasenya inicial són obligatoris.");
+    if(!editUser.value.username.trim() || !editUser.value.password.trim()) return alert("Nom d'usuari i contrasenya són obligatoris.");
     try {
+        // If username changed, handle rename first or delete old/create new
+        if (isEditingUser.value && editUser.value.username !== originalUsername.value) {
+            const renameRes = await fetch(`${backendUrl}/usuaris/rename/${originalUsername.value}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ new_username: editUser.value.username })
+            });
+            if (!renameRes.ok) {
+                const err = await renameRes.json();
+                return alert("Error al reanomenar: " + err.detail);
+            }
+        }
+
+        // Save (update) user data
         await fetch(`${backendUrl}/usuaris/${editUser.value.username}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -494,6 +549,23 @@ const saveUser = async () => {
         });
         showUserModal.value = false;
         fetchUsers();
+    } catch(e) { console.error(e); }
+};
+
+const addGroup = async () => {
+    const nou = prompt("Nom del nou grup (Ex: 1r SMX A):");
+    if (!nou) return;
+    try {
+        await fetch(`${backendUrl}/grups/${encodeURIComponent(nou)}`, { method: 'POST' });
+        fetchGroups();
+    } catch(e) { console.error(e); }
+};
+
+const removeGroup = async (name) => {
+    if (!confirm(`Estàs segur d'esborrar el grup ${name}?`)) return;
+    try {
+        await fetch(`${backendUrl}/grups/${encodeURIComponent(name)}`, { method: 'DELETE' });
+        fetchGroups();
     } catch(e) { console.error(e); }
 };
 

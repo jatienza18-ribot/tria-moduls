@@ -142,6 +142,64 @@ def delete_usuari(username: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class RenameUserPayload(BaseModel):
+    new_username: str
+
+@app.patch("/usuaris/rename/{old_username}")
+def rename_usuari(old_username: str, payload: RenameUserPayload):
+    try:
+        if not db: return {"status": "success"}
+        new_username = payload.new_username.strip()
+        if not new_username:
+            raise HTTPException(status_code=400, detail="El nou nom d'usuari no pot estar buit")
+        
+        old_ref = db.collection("usuaris").document(old_username)
+        old_doc = old_ref.get()
+        if not old_doc.exists:
+            raise HTTPException(status_code=404, detail="Usuari no trobat")
+        
+        # Check if new username already exists
+        if db.collection("usuaris").document(new_username).get().exists:
+            raise HTTPException(status_code=400, detail="El nou nom d'usuari ja existeix")
+
+        data = old_doc.to_dict()
+        db.collection("usuaris").document(new_username).set(data)
+        old_ref.delete()
+        
+        return {"status": "success"}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/grups/")
+def get_grups():
+    try:
+        if not db: return []
+        docs = db.collection("grups").stream()
+        return [d.id for d in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/grups/{name}")
+def create_grup(name: str):
+    try:
+        if not db: return {"status": "success"}
+        db.collection("grups").document(name).set({})
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/grups/{name}")
+def delete_grup(name: str):
+    try:
+        if not db: return {"status": "success"}
+        db.collection("grups").document(name).delete()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # -- Estat Compartit per Especialitat --
 
 @app.get("/tria/state/{especialitat}")
@@ -510,4 +568,3 @@ async def delete_horari_slot(slot_id: str):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
