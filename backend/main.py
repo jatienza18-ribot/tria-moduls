@@ -98,9 +98,10 @@ def login(creds: LoginRequest):
         primary_espc = esp_list[0] if esp_list else None
         
         return {
-            "token": "fake-jwt-" + creds.username, 
-            "rol": user_data.get("rol"), 
-            "especialitat": primary_espc, 
+            "token": "fake-jwt-" + creds.username,
+            "rol": user_data.get("rol"),
+            "especialitat": primary_espc,
+            "especialitats": esp_list, # Return full list
             "username": creds.username
         }
     except HTTPException as e:
@@ -113,7 +114,7 @@ def get_usuaris():
     try:
         if not db: return []
         docs = db.collection("usuaris").stream()
-        return [{"username": d.id, "password": d.to_dict().get("password"), "rol": d.to_dict().get("rol"), "especialitats": d.to_dict().get("especialitats", [])} for d in docs]
+        return [{"username": d.id, "rol": d.to_dict().get("rol"), "especialitats": d.to_dict().get("especialitats", [])} for d in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -178,15 +179,20 @@ def get_grups():
     try:
         if not db: return []
         docs = db.collection("grups").stream()
-        return [d.id for d in docs]
+        return [{"name": d.id, "especialitats": d.to_dict().get("especialitats", [])} for d in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class GrupPayload(BaseModel):
+    especialitats: List[str]
+
 @app.post("/grups/{name}")
-def create_grup(name: str):
+def create_grup(name: str, payload: GrupPayload):
     try:
         if not db: return {"status": "success"}
-        db.collection("grups").document(name).set({})
+        db.collection("grups").document(name).set({
+            "especialitats": payload.especialitats
+        })
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -249,9 +255,19 @@ async def take_modul(payload: SlotSelection):
             if payload.docent_id in docent_ids:
                 continue # Already has it
                 
-            if len(docent_ids) >= max_docents:
-                raise HTTPException(status_code=400, detail="Aquest mòdul ja ha assolit el màxim de docents permesos.")
-
+            # NEW: Specialty restriction check
+            allowed_espc = data.get("especialitats_permises", [])
+            if allowed_espc:
+                # Need to find docent's specialty. We'll fetch it if not cached.
+                # For efficiency, we assume the frontend checked it, but backend MUST verify.
+                docent_doc = db.collection("usuaris").document(payload.docent_id).get()
+                if docent_doc.exists:
+                    d_data = docent_doc.to_dict()
+                    d_espc = d_data.get("especialitats", [])
+                    # If user is ADMIN, they can take anything? Or if no specialty overlaps?
+                    if d_data.get("rol") != "ADMIN" and not any(e in allowed_espc for e in d_espc):
+                        raise HTTPException(status_code=403, detail=f"Aquesta franja està reservada per a: {', '.join(allowed_espc)}")
+            
             batch.update(doc.reference, {"docent_ids": firestore.ArrayUnion([payload.docent_id])})
             updated_slots.append(doc.id)
             
@@ -485,6 +501,25 @@ async def next_turn(especialitat: str):
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
+class SetTurnPayload(BaseModel):
+    torn_actual: Optional[str]
+
+@app.post("/tria/set_turn/{especialitat}")
+async def set_turn(especialitat: str, payload: SetTurnPayload):
+    try:
+        if not db: return {"status": "success"}
+        state_ref = db.collection("tria").document(especialitat)
+        state_ref.update({"torn_actual": payload.torn_actual})
+        
+        await manager.broadcast({
+            "type": "TURN_CHANGED",
+            "especialitat": especialitat,
+            "torn_actual": payload.torn_actual
+        })
+        return {"status": "success"}
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/horaris/")
 def get_horaris():
     try:
@@ -505,6 +540,7 @@ class SlotMovePayload(BaseModel):
     hora_fi: str
     modul_nom: str = None
     max_docents: int = 1
+    especialitats_permises: Optional[List[str]] = None
 
 @app.put("/horaris/{slot_id}")
 async def update_horari_slot(slot_id: str, payload: SlotMovePayload):
@@ -522,6 +558,8 @@ async def update_horari_slot(slot_id: str, payload: SlotMovePayload):
         }
         if payload.modul_nom is not None:
             updates["modul_nom"] = payload.modul_nom
+        if payload.especialitats_permises is not None:
+            updates["especialitats_permises"] = payload.especialitats_permises
             
         doc_ref.update(updates)
         
@@ -537,6 +575,7 @@ class SlotCreatePayload(BaseModel):
     hora_fi: str
     modul_nom: str
     max_docents: int = 1
+    especialitats_permises: List[str] = []
     
 @app.post("/horaris/")
 async def create_horari_slot(payload: SlotCreatePayload):
@@ -552,6 +591,7 @@ async def create_horari_slot(payload: SlotCreatePayload):
             "modul_nom": payload.modul_nom,
             "modul_id": payload.modul_nom,
             "max_docents": payload.max_docents,
+            "especialitats_permises": payload.especialitats_permises,
             "docent_ids": []
         })
         await manager.broadcast({"type": "SCHEDULE_SHIFTED"})

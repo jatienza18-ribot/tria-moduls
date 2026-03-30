@@ -2,29 +2,57 @@
   <div class="h-screen w-full bg-slate-50 flex flex-col p-4 md:p-8 relative">
     
     <!-- Header Controls -->
-    <div class="absolute top-4 right-4 flex gap-2 z-50">
+    <div class="absolute top-4 left-4 right-4 flex justify-between gap-4 z-50">
+        <div class="flex items-center gap-4">
+            <div v-if="session.especialitats && session.especialitats.length > 1" class="bg-white border-2 border-brand-blue rounded-xl p-1 flex shadow-sm">
+                <button 
+                  v-for="esp in session.especialitats" :key="esp"
+                  @click="currentEspecialitat = esp; fetchData();"
+                  class="px-4 py-1.5 rounded-lg font-bold text-xs transition-all"
+                  :class="currentEspecialitat === esp ? 'bg-brand-blue text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'"
+                >
+                  {{ esp }}
+                </button>
+            </div>
+            <div v-else class="bg-brand-blue text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm">
+                {{ currentEspecialitat }}
+            </div>
+        </div>
+
         <div class="bg-indigo-900 text-white p-2 rounded-lg shadow-md flex items-center gap-3 border border-indigo-700">
           <div class="flex flex-col">
             <span class="text-[10px] uppercase font-bold text-indigo-200">Cap de Departament</span>
-            <span class="text-sm font-bold">{{ session?.especialitat }}</span>
+            <span class="text-sm font-bold">{{ session?.username }}</span>
           </div>
           <button @click="logout" class="ml-2 text-xs bg-indigo-800 hover:bg-indigo-700 px-2 py-1 rounded">Sortir</button>
         </div>
     </div>
 
-    <!-- Proxy Selection Mode -->
+    <!-- Proxy Selection & Turn Control -->
     <div v-if="state.ordre" class="fixed bottom-4 right-4 bg-white p-4 rounded-xl shadow-2xl z-50 border-2 border-brand-blue/30 w-72">
       <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
         <i class="ph ph-user-switch text-brand-blue text-lg"></i>
-        Actuant en nom de:
+        Gestió de Docents ({{ currentEspecialitat }})
       </h3>
-      <select v-model="proxyUserId" class="w-full border border-slate-300 rounded p-2 bg-slate-50 font-bold focus:ring-brand-blue outline-none" @change="fetchData">
-        <option :value="null">-- Tria un docent --</option>
-        <option v-for="user in state.ordre" :key="user" :value="user">
-          {{ user }}
-          {{ state.torn_actual === user ? '⭐ (Torn Actual)' : '' }}
-        </option>
-      </select>
+      <div class="flex flex-col gap-2">
+          <select v-model="proxyUserId" class="w-full border border-slate-300 rounded p-2 bg-slate-50 font-bold focus:ring-brand-blue outline-none" @change="fetchData">
+            <option :value="null">-- Tria un docent --</option>
+            <option v-for="user in state.ordre" :key="user" :value="user">
+              {{ user }}
+              {{ state.torn_actual === user ? '⭐ (Torn Actual)' : '' }}
+            </option>
+          </select>
+          
+          <div v-if="proxyUserId" class="flex gap-1 mt-1">
+              <button 
+                @click="setTurn(proxyUserId)"
+                class="flex-1 bg-amber-100 text-amber-800 text-[10px] py-1.5 rounded font-extrabold hover:bg-amber-200 border border-amber-200 transition"
+                title="Estableix aquest docent com el torn oficial"
+              >
+                ESTABLIR TORN
+              </button>
+          </div>
+      </div>
       <p v-if="proxyUserId && state.torn_actual !== proxyUserId" class="text-xs text-amber-600 mt-2 font-medium">
         Avís: Estàs gestionant a algú que NO té el torn actiu.
       </p>
@@ -97,7 +125,7 @@
                                 class="rounded-lg p-2 text-xs border transition-all cursor-pointer h-full flex flex-col justify-center overflow-hidden"
                                 :class="getSlotStyles(slot)"
                             >
-                                <div class="font-bold truncate" :class="{'text-red-600': hasOverlap(slot) && !hasMyId(slot)}">
+                                <div class="font-bold leading-tight break-words" :class="{'text-red-600': hasOverlap(slot) && !hasMyId(slot)}">
                                     {{ slot.modul_nom || slot.modul_id }}
                                 </div>
                                 <div class="truncate opacity-75 mt-0.5 flex flex-wrap gap-1">
@@ -153,8 +181,10 @@ if (!session || session.rol !== 'DEPARTAMENT') {
 }
 
 const proxyUserId = ref(null); // The teacher selected
+const currentEspecialitat = ref(session.especialitat || session.especialitats[0]);
 
 const slots = ref([]);
+const allGroupsMetadata = ref([]);
 const state = ref({ torn_actual: null, ordre: [] });
 const activeGroup = ref('');
 const socketConnected = ref(false);
@@ -172,10 +202,27 @@ const timeSlots = [
 ];
 
 const isMyTurn = computed(() => proxyUserId.value && state.value.torn_actual === proxyUserId.value);
-const myTotalLectives = computed(() => slots.value.filter(s => hasMyId(s)).length);
+const myTotalLectives = computed(() => slots.value.filter(hasMyId).length);
 
-const availableGroups = computed(() => Array.from(new Set(slots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean).sort());
-const filteredSlots = computed(() => activeGroup.value ? slots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : slots.value);
+const availableGroups = computed(() => {
+    // Show only groups that have this specialty implicated OR no specialties restricted?
+    const groupsImplicatedNames = allGroupsMetadata.value
+        .filter(g => g.especialitats.includes(currentEspecialitat.value))
+        .map(g => g.name);
+    
+    // Also include any group that has existing slots for this specialty?
+    // Actually, following the user request: "cada grup hauriem de poder definir quines especialitats estan implicades"
+    return groupsImplicatedNames.sort();
+});
+
+const filteredSlots = computed(() => {
+    let base = activeGroup.value ? slots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : [];
+    // Also filter slots by especialitats_permises
+    return base.filter(s => {
+        if (!s.especialitats_permises || s.especialitats_permises.length === 0) return true;
+        return s.especialitats_permises.includes(currentEspecialitat.value);
+    });
+});
 
 const logout = () => { localStorage.removeItem('tria_session'); router.push('/login'); };
 
@@ -190,9 +237,15 @@ const fetchData = async () => {
     try {
         const resSlots = await fetch(`${backendUrl}/horaris/`);
         slots.value = sanitizeSlots(await resSlots.json());
-        if (!activeGroup.value && availableGroups.value.length > 0) activeGroup.value = availableGroups.value[0];
+        
+        const resG = await fetch(`${backendUrl}/grups`);
+        allGroupsMetadata.value = await resG.json();
 
-        const resState = await fetch(`${backendUrl}/tria/state/${session.especialitat}`);
+        if (!availableGroups.value.includes(activeGroup.value)) {
+            activeGroup.value = availableGroups.value.length > 0 ? availableGroups.value[0] : '';
+        }
+
+        const resState = await fetch(`${backendUrl}/tria/state/${currentEspecialitat.value}`);
         state.value = await resState.json();
     } catch (e) { console.error(e); }
 };
@@ -230,8 +283,20 @@ const toggleAssign = async (slot) => {
 const confirmTurn = async () => {
     if (!isMyTurn.value || roundSelectionCount.value < 2) return;
     try {
-        const res = await fetch(`${backendUrl}/tria/next_turn/${session.especialitat}`, { method: 'POST' });
+        const res = await fetch(`${backendUrl}/tria/next_turn/${currentEspecialitat.value}`, { method: 'POST' });
         if (res.ok) { roundSelectionCount.value = 0; alert("Torn passat!"); }
+    } catch(e) { console.error(e); }
+};
+
+const setTurn = async (docentId) => {
+    if (!confirm(`Vols posar a ${docentId} com al torn oficial actual?`)) return;
+    try {
+        await fetch(`${backendUrl}/tria/set_turn/${currentEspecialitat.value}`, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ torn_actual: docentId })
+        });
+        alert("Torn canviat.");
     } catch(e) { console.error(e); }
 };
 

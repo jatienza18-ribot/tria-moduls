@@ -169,10 +169,25 @@
 
       <!-- Gestió de Grups -->
       <div v-if="viewMode === 'GRUPS'" class="bg-white rounded-xl shadow border border-slate-200 p-6">
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              <div v-for="g in allGroups" :key="g" class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-sm">
-                  <span class="font-bold text-slate-700">{{ g }}</span>
-                  <button @click="removeGroup(g)" class="text-red-400 hover:text-red-600 p-1">✕</button>
+          <div class="flex justify-between items-center mb-6">
+              <h2 class="text-xl font-bold text-slate-800">Llistat Maestro de Grups</h2>
+              <button @click="openGroupModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-sm transition">+ Nou Grup</button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div v-for="g in allGroups" :key="g.name" class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-2 shadow-sm relative group">
+                  <div class="flex justify-between items-center">
+                    <span class="font-extrabold text-slate-800">{{ g.name }}</span>
+                    <div class="flex gap-1">
+                        <button @click="openGroupModal(g)" class="text-slate-400 hover:text-indigo-600 p-1 transition">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button @click="removeGroup(g.name)" class="text-slate-400 hover:text-red-600 p-1 transition">✕</button>
+                    </div>
+                  </div>
+                  <div class="flex flex-wrap gap-1">
+                      <span v-for="esp in g.especialitats" :key="esp" class="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold border border-indigo-200">{{ esp }}</span>
+                      <span v-if="!g.especialitats || g.especialitats.length === 0" class="text-[10px] text-slate-400 italic">Cap especialitat assignada</span>
+                  </div>
               </div>
           </div>
           <div v-if="allGroups.length === 0" class="text-center py-10 text-slate-400 italic">No hi ha grups configurats.</div>
@@ -228,6 +243,16 @@
                         <span class="text-xs text-amber-700">Permet a dues persones diferents adjudicar-se aquest mateix bloc al seu horari.</span>
                     </div>
                 </label>
+
+                <div class="mt-2 text-slate-500 font-bold text-xs uppercase px-1 border-b pb-1">Restringir a Especialitats:</div>
+                <div class="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                    <label v-for="esp in Object.keys(allStates)" :key="esp" class="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded transition">
+                        <input type="checkbox" :value="esp" v-model="editSlot.especialitats_permises" class="w-4 h-4 accent-indigo-600" />
+                        <span class="text-xs font-bold text-slate-600">{{ esp }}</span>
+                    </label>
+                    <div v-if="Object.keys(allStates).length === 0" class="text-[10px] text-slate-400 italic col-span-2">No hi ha especialitats creades.</div>
+                </div>
+                <p class="text-[10px] text-slate-400 italic">Si no en selecciones cap, qualsevol especialitat el podrà triar.</p>
             </div>
 
             <div class="flex flex-col gap-2 mt-8">
@@ -244,7 +269,7 @@
 
     <!-- User Modal -->
     <div v-if="showUserModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
         <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
             <h2 class="font-bold text-lg">{{ isEditingUser ? 'Editar Usuari' : 'Nou Usuari' }}</h2>
             <button @click="showUserModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
@@ -253,7 +278,7 @@
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">Nom d'Usuari</label>
-                    <input v-model="editUser.username" type="text" placeholder="ex: matematiques_cap" class="w-full border border-slate-300 p-2 rounded outline-none focus:border-brand-blue" />
+                    <input v-model="editUser.username" :disabled="isEditingUser" type="text" placeholder="ex: matematiques_cap" class="w-full border border-slate-300 p-2 rounded outline-none focus:border-brand-blue" />
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-slate-700 mb-1">Contrasenya</label>
@@ -267,7 +292,7 @@
                     </select>
                 </div>
                 <div v-if="editUser.rol === 'DEPARTAMENT'">
-                    <label class="block text-sm font-bold text-slate-700 mb-2">Especialitat que pot gestionar</label>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">Especialitat/s que pot gestionar</label>
                     <div class="max-h-48 overflow-y-auto border border-slate-200 rounded p-2 flex flex-col gap-2 bg-slate-50">
                         <label v-for="(state, espc) in allStates" :key="espc" class="flex items-center gap-2 text-sm cursor-pointer hover:bg-slate-200 p-1 rounded">
                             <input type="checkbox" :value="espc" v-model="editUser.especialitats" class="accent-brand-blue" />
@@ -279,6 +304,36 @@
             </div>
             <button @click="saveUser" class="w-full mt-6 bg-brand-blue text-white py-3 rounded-lg font-bold hover:bg-blue-600 shadow-md">
                 {{ isEditingUser ? 'Desar Canvis' : 'Crear Credencial' }}
+            </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Group Modal -->
+    <div v-if="showGroupModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col">
+        <div class="p-4 border-b bg-slate-50 flex justify-between items-center">
+            <h2 class="font-bold text-lg">{{ isEditingGroup ? 'Editar Grup' : 'Nou Grup' }}</h2>
+            <button @click="showGroupModal = false" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+        </div>
+        <div class="p-6 overflow-y-auto">
+            <div class="flex flex-col gap-4">
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-1">Nom del Grup</label>
+                  <input v-model="editGroup.name" :disabled="isEditingGroup" type="text" placeholder="Ex: 1r SMX A" class="w-full border border-slate-300 rounded-lg p-3 outline-none focus:border-brand-blue" />
+                </div>
+                <div>
+                  <label class="block text-sm font-bold text-slate-700 mb-1">Especialitats Implicades</label>
+                  <div class="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label v-for="esp in Object.keys(allStates)" :key="esp" class="flex items-center gap-2 cursor-pointer hover:bg-slate-100 p-1 rounded transition">
+                        <input type="checkbox" :value="esp" v-model="editGroup.especialitats" class="w-4 h-4 accent-indigo-600" />
+                        <span class="text-xs font-bold text-slate-600">{{ esp }}</span>
+                    </label>
+                  </div>
+                </div>
+            </div>
+            <button @click="saveGroup" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold mt-6 hover:bg-indigo-700 shadow-md transition">
+              Desar Grup
             </button>
         </div>
       </div>
@@ -316,6 +371,10 @@ const isEditingUser = ref(false);
 const originalUsername = ref('');
 const editUser = ref({ username: '', password: '', rol: 'DEPARTAMENT', especialitats: [] });
 
+const showGroupModal = ref(false);
+const isEditingGroup = ref(false);
+const editGroup = ref({ name: '', especialitats: [] });
+
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8001';
 
 const days = [{ id: 1, label: 'Dilluns' }, { id: 2, label: 'Dimarts' }, { id: 3, label: 'Dimecres' }, { id: 4, label: 'Dijous' }, { id: 5, label: 'Divendres' }];
@@ -328,7 +387,7 @@ const timeSlots = [
 
 const availableGroups = computed(() => {
     const fromSlots = Array.from(new Set(allSlots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean);
-    const fromMaster = allGroups.value;
+    const fromMaster = allGroups.value.map(g => g.name);
     return Array.from(new Set([...fromSlots, ...fromMaster])).sort();
 });
 const filteredSlots = computed(() => activeGroup.value ? allSlots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : allSlots.value);
@@ -430,10 +489,11 @@ const openCreateModal = () => {
     editModeDesdoblament.value = false;
     newGroupName.value = '';
     editSlot.value = { 
-        grup_id: activeGroup.value || availableGroups.value[0], 
+        grup_id: activeGroup.value || (availableGroups.value.length > 0 ? availableGroups.value[0] : ''), 
         dia_setmana: 1, 
         hora_inici: '08:00', 
-        modul_nom: '' 
+        modul_nom: '',
+        especialitats_permises: []
     };
     showMoveModal.value = true;
 };
@@ -446,7 +506,8 @@ const openMoveModal = (slot) => {
         grup_id: slot.grup_id,
         dia_setmana: slot.dia_setmana,
         hora_inici: slot.hora_inici,
-        modul_nom: slot.modul_nom || slot.modul_id || ''
+        modul_nom: slot.modul_nom || slot.modul_id || '',
+        especialitats_permises: slot.especialitats_permises || []
     };
     showMoveModal.value = true;
 };
@@ -475,7 +536,8 @@ const submitEdit = async () => {
                     hora_inici: editSlot.value.hora_inici,
                     hora_fi: hFi,
                     modul_nom: editSlot.value.modul_nom,
-                    max_docents: editModeDesdoblament.value ? 2 : 1
+                    max_docents: editModeDesdoblament.value ? 2 : 1,
+                    especialitats_permises: editSlot.value.especialitats_permises || []
                 })
             });
             // Force active view onto the new group so they clearly see the newly created square!
@@ -489,7 +551,8 @@ const submitEdit = async () => {
                     hora_inici: editSlot.value.hora_inici,
                     hora_fi: hFi,
                     modul_nom: editSlot.value.modul_nom,
-                    max_docents: editModeDesdoblament.value ? 2 : 1
+                    max_docents: editModeDesdoblament.value ? 2 : 1,
+                    especialitats_permises: editSlot.value.especialitats_permises
                 })
             });
         }
@@ -552,11 +615,26 @@ const saveUser = async () => {
     } catch(e) { console.error(e); }
 };
 
-const addGroup = async () => {
-    const nou = prompt("Nom del nou grup (Ex: 1r SMX A):");
-    if (!nou) return;
+const openGroupModal = (group = null) => {
+    if (group) {
+        isEditingGroup.value = true;
+        editGroup.value = { ...group };
+    } else {
+        isEditingGroup.value = false;
+        editGroup.value = { name: '', especialitats: [] };
+    }
+    showGroupModal.value = true;
+};
+
+const saveGroup = async () => {
+    if(!editGroup.value.name.trim()) return alert("El nom del grup és obligatori.");
     try {
-        await fetch(`${backendUrl}/grups/${encodeURIComponent(nou)}`, { method: 'POST' });
+        await fetch(`${backendUrl}/grups/${encodeURIComponent(editGroup.value.name)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ especialitats: editGroup.value.especialitats })
+        });
+        showGroupModal.value = false;
         fetchGroups();
     } catch(e) { console.error(e); }
 };
