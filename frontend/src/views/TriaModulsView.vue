@@ -187,7 +187,7 @@ if (!session || session.rol !== 'DEPARTAMENT') {
 }
 
 const proxyUserId = ref(null); // The teacher selected
-const currentEspecialitat = ref(session.especialitat || session.especialitats[0]);
+const currentEspecialitat = ref(session?.especialitat || (session?.especialitats && session.especialitats[0]) || '');
 
 const slots = ref([]);
 const allGroupsMetadata = ref([]);
@@ -211,14 +211,15 @@ const isMyTurn = computed(() => proxyUserId.value && state.value.torn_actual ===
 const myTotalLectives = computed(() => slots.value.filter(hasMyId).length);
 
 const availableGroups = computed(() => {
-    // Show only groups that have this specialty implicated OR no specialties restricted?
+    // Handling both legacy (strings) and new (objects) formats
     const groupsImplicatedNames = allGroupsMetadata.value
-        .filter(g => g.especialitats.includes(currentEspecialitat.value))
-        .map(g => g.name);
+        .filter(g => {
+            if (typeof g === 'string') return true; // Legacy fallback
+            return (g.especialitats || []).includes(currentEspecialitat.value);
+        })
+        .map(g => typeof g === 'string' ? g : g.name);
     
-    // Also include any group that has existing slots for this specialty?
-    // Actually, following the user request: "cada grup hauriem de poder definir quines especialitats estan implicades"
-    return groupsImplicatedNames.sort();
+    return Array.from(new Set(groupsImplicatedNames)).filter(Boolean).sort();
 });
 
 const filteredSlots = computed(() => {

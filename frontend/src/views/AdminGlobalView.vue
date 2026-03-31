@@ -393,7 +393,7 @@ const timeSlots = [
 ];
 
 const availableGroups = computed(() => {
-    return allGroups.value.map(g => g.name).sort();
+    return allGroups.value.map(g => typeof g === 'string' ? g : (g.name || '')).filter(Boolean).sort();
 });
 const filteredSlots = computed(() => activeGroup.value ? allSlots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : allSlots.value);
 
