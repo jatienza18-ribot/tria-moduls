@@ -18,6 +18,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+def read_root():
+    return {"status": "ok", "version": "1.2.0", "timestamp": "2026-03-31T22:42:00"}
+
+@app.get("/version/")
+@app.get("/version")
+def get_version():
+    return {"version": "1.2.0", "timestamp": "2026-03-31T22:42:00"}
+
 # Initialize Firebase — supports env var (production) or local file (development)
 if not firebase_admin._apps:
     cred_json = os.environ.get("FIREBASE_CREDENTIALS_JSON")
@@ -184,10 +193,7 @@ def get_grups():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/version")
-def get_version():
-    return {"version": "1.1.0", "timestamp": "2026-03-31T22:35:00"}
- Riverside 
+ River 
 
 class GrupPayload(BaseModel):
     especialitats: List[str]
