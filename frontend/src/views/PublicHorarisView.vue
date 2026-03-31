@@ -10,13 +10,13 @@
     <div class="max-w-7xl mx-auto p-6">
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-8 text-center flex flex-col items-center">
             <h2 class="text-xl font-bold mb-4">Busca el teu horari personalitzat:</h2>
-            <div class="flex max-w-md w-full gap-2 mb-4">
-                <input v-model="searchQuery" @keyup.enter="search" type="text" placeholder="Introdueix el teu codi d'usuari..." class="flex-1 border border-slate-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-brand-blue/50" />
+            <div class="flex max-w-md w-full gap-2 mb-2">
+                <input v-model="searchQuery" @keyup.enter="search" type="text" placeholder="Busca per nom o codi..." class="flex-1 border border-slate-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-brand-blue/50" />
                 <button @click="search" class="bg-brand-blue text-white px-6 rounded-lg font-bold hover:bg-blue-600 transition shadow">Buscar</button>
             </div>
             
-            <button @click="showAll = !showAll" class="text-xs font-bold text-slate-400 hover:text-brand-blue transition-colors uppercase tracking-wider">
-                {{ showAll ? '← Tornar a la cerca' : 'O veure tots els resultats consolidats' }}
+            <button @click="showAll = !showAll; if(showAll) searchResult = ''" class="text-xs font-bold text-slate-400 hover:text-brand-blue transition-colors uppercase tracking-wider mb-2">
+                {{ showAll ? '← Tornar a la cerca filtrada' : 'O veure tots els resultats consolidats' }}
             </button>
             
             <div v-if="!showAll && searchResult && mySlots.length > 0" class="mt-8 w-full">
@@ -91,23 +91,59 @@ const fetchData = async () => {
 
 const usersWithSlots = computed(() => {
     const list = [];
-    allUsers.value.forEach(u => {
-        const slots = allSlots.value.filter(s => (s.docent_ids || []).includes(u.username) || s.docent_id === u.username);
-        if (slots.length > 0) {
-            slots.sort((a,b) => (a.dia_setmana !== b.dia_setmana ? a.dia_setmana - b.dia_setmana : a.hora_inici.localeCompare(b.hora_inici)));
-            list.push({ username: u.username, slots });
+    const userMap = new Map();
+    
+    // Start with all known users
+    allUsers.value.forEach(u => userMap.set(u.username, { username: u.username, slots: [] }));
+    
+    // Add any docents found in slots that might not be in the master list
+    allSlots.value.forEach(s => {
+        const ids = [...(s.docent_ids || [])];
+        if (s.docent_id && !ids.includes(s.docent_id)) ids.push(s.docent_id);
+        
+        ids.forEach(id => {
+            if (!userMap.has(id)) {
+                userMap.set(id, { username: id, slots: [] });
+            }
+            userMap.get(id).slots.push(s);
+        });
+    });
+    
+    // Convert map to list and filter those with slots
+    userMap.forEach((val, key) => {
+        if (val.slots.length > 0) {
+            // Sort slots chronologically
+            val.slots.sort((a,b) => (a.dia_setmana !== b.dia_setmana ? a.dia_setmana - b.dia_setmana : a.hora_inici.localeCompare(b.hora_inici)));
+            list.push(val);
         }
     });
+    
     return list.sort((a,b) => a.username.localeCompare(b.username));
 });
 
 const search = () => {
-    if(!searchQuery.value.trim()) return;
+    const q = searchQuery.value.trim().toLowerCase();
+    if(!q) {
+        showAll.value = true;
+        searchResult.value = '';
+        return;
+    }
+    
     searchResult.value = searchQuery.value.trim();
     showAll.value = false;
-    mySlots.value = allSlots.value.filter(s => (s.docent_ids || []).includes(searchResult.value) || s.docent_id === searchResult.value);
+    
+    // Fuzzy search: check if query is in username OR if it matches any user's display name (if we had one)
+    // For now, substring match on username/ID
+    mySlots.value = allSlots.value.filter(s => {
+        const ids = (s.docent_ids || []).map(id => id.toLowerCase());
+        const id = (s.docent_id || '').toLowerCase();
+        return ids.some(item => item.includes(q)) || id.includes(q);
+    });
     mySlots.value.sort((a,b) => (a.dia_setmana !== b.dia_setmana ? a.dia_setmana - b.dia_setmana : a.hora_inici.localeCompare(b.hora_inici)));
 };
 
-onMounted(fetchData);
+onMounted(async () => {
+    await fetchData();
+    showAll.value = true; // Show all by default
+});
 </script>

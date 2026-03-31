@@ -3,28 +3,29 @@
     
     <!-- Header Controls -->
     <div class="absolute top-4 left-4 right-4 flex justify-between gap-4 z-50">
-        <div class="flex items-center gap-4">
-            <div v-if="session.especialitats && session.especialitats.length > 1" class="bg-white border-2 border-brand-blue rounded-xl p-1 flex shadow-sm">
+        <div class="flex items-center gap-4 bg-white/50 backdrop-blur-sm p-1 rounded-2xl border border-slate-200 shadow-sm">
+            <div v-if="(session.especialitats || []).length > 1" class="flex items-center gap-1">
                 <button 
-                  v-for="esp in session.especialitats" :key="esp"
+                  v-for="esp in (session.especialitats || [])" :key="esp"
                   @click="currentEspecialitat = esp; fetchData();"
-                  class="px-4 py-1.5 rounded-lg font-bold text-xs transition-all"
-                  :class="currentEspecialitat === esp ? 'bg-brand-blue text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'"
+                  class="px-4 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2"
+                  :class="currentEspecialitat === esp ? 'bg-brand-blue text-white shadow-md scale-105' : 'text-slate-500 hover:bg-slate-100'"
                 >
-                  {{ esp }}
+                  <i class="ph-bold ph-graduation-cap"></i> {{ esp }}
                 </button>
             </div>
-            <div v-else class="bg-brand-blue text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm">
-                {{ currentEspecialitat }}
+            <div v-else class="bg-brand-blue text-white px-5 py-2 rounded-xl font-bold text-xs shadow-sm flex items-center gap-2">
+                <i class="ph-bold ph-graduation-cap"></i> {{ currentEspecialitat }}
             </div>
         </div>
 
-        <div class="bg-indigo-900 text-white p-2 rounded-lg shadow-md flex items-center gap-3 border border-indigo-700">
+        <div class="bg-indigo-950 text-white p-2 px-4 rounded-2xl shadow-xl flex items-center gap-4 border border-indigo-800">
           <div class="flex flex-col">
-            <span class="text-[10px] uppercase font-bold text-indigo-200">Cap de Departament</span>
+            <span class="text-[9px] uppercase font-black text-indigo-400 tracking-tighter">Sessió Activa</span>
             <span class="text-sm font-bold">{{ session?.username }}</span>
           </div>
-          <button @click="logout" class="ml-2 text-xs bg-indigo-800 hover:bg-indigo-700 px-2 py-1 rounded">Sortir</button>
+          <div class="h-6 w-px bg-indigo-800"></div>
+          <button @click="logout" class="text-[10px] font-bold uppercase tracking-widest text-indigo-300 hover:text-white transition-colors">Sortir</button>
         </div>
     </div>
 
@@ -59,11 +60,16 @@
     </div>
 
     <div v-if="!proxyUserId" class="flex-1 flex flex-col items-center justify-center text-center p-8">
-        <div class="w-24 h-24 bg-brand-blue/10 rounded-full flex items-center justify-center mb-6">
-            <h1 class="text-brand-blue font-extrabold text-4xl">T</h1>
+        <div class="mb-4">
+          <div class="h-16 w-16 bg-blue-100 text-brand-blue rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner mx-auto">
+            {{ (currentEspecialitat || '?').toString().charAt(0) }}
+          </div>
         </div>
-        <h2 class="text-3xl font-extrabold text-slate-800 mb-2">Benvingut/da Cap de Departament</h2>
-        <p class="text-slate-500 max-w-md">Per començar a oficialitzar la tria, utilitza el panell de la dreta per seleccionar quin professor del teu departament ha de triar horari ara mateix.</p>
+        <h2 class="text-2xl font-black text-slate-800 leading-tight">Benvingut/da Cap de Departament</h2>
+        <p class="text-slate-400 font-medium text-sm mt-3 max-w-sm mx-auto">
+          Ets el responsable de la tria per l'especialitat <span class="text-brand-blue font-bold shadow-[0_4px_0_0_#cfe1ff]">{{ currentEspecialitat }}</span>. 
+          Utilitza el panell d'accions per començar.
+        </p>
     </div>
 
     <div v-else class="max-w-7xl mx-auto w-full flex-1 flex flex-col min-h-0 pt-16 md:pt-4">

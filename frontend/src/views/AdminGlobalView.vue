@@ -167,11 +167,18 @@
         </table>
       </div>
 
-      <!-- Gestió de Grups -->
       <div v-if="viewMode === 'GRUPS'" class="bg-white rounded-xl shadow border border-slate-200 p-6">
-          <div class="flex justify-between items-center mb-6">
-              <h2 class="text-xl font-bold text-slate-800">Llistat Maestro de Grups</h2>
-              <button @click="openGroupModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-sm transition">+ Nou Grup</button>
+          <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+              <div class="flex flex-col">
+                <h2 class="text-xl font-bold text-slate-800">Llistat Maestro de Grups</h2>
+                <p class="text-xs text-slate-500">Només els grups d'aquesta llista apareixeran als desplegables de l'editor.</p>
+              </div>
+              <div class="flex gap-2">
+                <button @click="syncGroups" class="bg-amber-100 text-amber-700 px-4 py-2 rounded-lg font-bold hover:bg-amber-200 border border-amber-200 shadow-sm transition text-xs flex items-center gap-2">
+                    <i class="ph ph-arrows-counter-clockwise"></i> Sincronitzar amb Horaris
+                </button>
+                <button @click="openGroupModal()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 shadow-sm transition text-sm">+ Nou Grup</button>
+              </div>
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div v-for="g in allGroups" :key="g.name" class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col gap-2 shadow-sm relative group">
@@ -386,9 +393,7 @@ const timeSlots = [
 ];
 
 const availableGroups = computed(() => {
-    const fromSlots = Array.from(new Set(allSlots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean);
-    const fromMaster = allGroups.value.map(g => g.name);
-    return Array.from(new Set([...fromSlots, ...fromMaster])).sort();
+    return allGroups.value.map(g => g.name).sort();
 });
 const filteredSlots = computed(() => activeGroup.value ? allSlots.value.filter(s => (s.grup_nom || s.grup_id) === activeGroup.value) : allSlots.value);
 
@@ -416,6 +421,27 @@ const fetchGroups = async () => {
         const res = await fetch(`${backendUrl}/grups`);
         allGroups.value = await res.json();
     } catch(e) { console.error(e); }
+};
+
+const syncGroups = async () => {
+    const fromSlots = Array.from(new Set(allSlots.value.map(s => s.grup_nom || s.grup_id))).filter(Boolean);
+    const fromMaster = allGroups.value.map(g => g.name);
+    const missing = fromSlots.filter(name => !fromMaster.includes(name));
+    
+    if (missing.length === 0) return alert("Tots els grups utilitzats ja estan a la llista mestre.");
+    if (!confirm(`S'han trobat ${missing.length} grups en els horaris que no estan a la llista mestre. Vols importar-los ara?`)) return;
+    
+    for (const name of missing) {
+        try {
+            await fetch(`${backendUrl}/grups/${encodeURIComponent(name)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ especialitats: [] })
+            });
+        } catch(e) { console.error(e); }
+    }
+    fetchGroups();
+    alert("Sincronització completada.");
 };
 
 const fetchUsers = async () => {
