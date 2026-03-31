@@ -245,7 +245,9 @@ const fetchData = async () => {
         const resSlots = await fetch(`${backendUrl}/horaris/`);
         slots.value = sanitizeSlots(await resSlots.json());
         
-        const resG = await fetch(`${backendUrl}/grups`);
+        // Try v2 first, fallback to legacy
+        let resG = await fetch(`${backendUrl}/grups_v2`);
+        if (!resG.ok) resG = await fetch(`${backendUrl}/grups`);
         allGroupsMetadata.value = await resG.json();
 
         if (!availableGroups.value.includes(activeGroup.value)) {

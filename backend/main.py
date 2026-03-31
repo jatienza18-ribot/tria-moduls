@@ -175,14 +175,28 @@ def rename_usuari(old_username: str, payload: RenameUserPayload):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/grups/")
-def get_grups():
+@app.get("/grups_v2/")
+def get_grups_v2():
     try:
         if not db: return []
         docs = db.collection("grups").stream()
         return [{"name": d.id, "especialitats": d.to_dict().get("especialitats", [])} for d in docs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/grups/")
+def get_grups_legacy():
+    # Keep legacy for compatibility during deploy
+    try:
+        if not db: return []
+        docs = db.collection("grups").stream()
+        return [d.id for d in docs]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/version")
+def get_version():
+    return {"version": "1.0.4", "timestamp": "2026-03-31T12:55:00"}
 
 class GrupPayload(BaseModel):
     especialitats: List[str]
